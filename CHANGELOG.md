@@ -7,6 +7,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
 
 ## [Unreleased]
 
+### Changed — the mainnet storage TTL entry criterion is recorded as met ([#698](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/698))
+
+- `docs/mainnet-registry.md` §1 criterion 1 now says so with evidence instead of leaving the
+  reader to check: #245 was fixed by [#447](https://github.com/corridor-in-a-box/corridor-in-a-box/pull/447)
+  (merged 2026-10-18). The entry names what extends storage on every write
+  (`extend_instance`/`extend_record` in the registry, `extend_instance`/`extend_entry` in the
+  attester, plus the permissionless `registry.bump`) and the four `cargo test` cases — run by
+  CI's `contracts` job — that measure the lifetime, so the criterion can be re-checked rather
+  than re-asserted. It also records the limit: `bump` keeps a live entry alive, it cannot revive
+  one already archived.
+
 ### Added — conformance test kit for planners ([#616](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/616))
 
 - `@corridor/router/testing` exports `describePlannerContract`, `checkPlannerContract` and
