@@ -13,7 +13,7 @@ import { expect, test, type Page } from "@playwright/test";
 //   1. The form collects no beneficiary data, so what it submits names no
 //      receiver. The engine gets a live quote for it and then refuses to settle
 //      on an unverified recipient. That refusal is the expected outcome here —
-//      it is the point the recipient-fields screen (#686) will move past.
+//      it is the point the recipient-fields screen (#688) will move past.
 //   2. An intent that does carry the anchor's SEP-12 receiver id and payout
 //      fields settles on testnet. The second test submits one through this app's
 //      own API route — the same server-side proxy the form's request travels —
