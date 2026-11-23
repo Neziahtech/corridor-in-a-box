@@ -7,6 +7,24 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
 
 ## [Unreleased]
 
+### Added — the send flow driven against the reference anchor in CI ([#693](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/693))
+
+- `web/e2e/send-flow.spec.ts` runs the browser through the live lane: the Anchor Platform
+  reference server, the engine served by `pnpm serve`, and the app in proxy mode. What the
+  form can do on its own is asserted as it stands — with no beneficiary fields yet, its run
+  gets a real SEP-38 quote and is then refused for want of a registered receiver, and the
+  refusal the page shows is the engine's own `KYC_REQUIRED`. A second test submits an intent
+  that does name its beneficiary through the app's own API route, waits for the testnet
+  settlement, and then follows that run on the page to `completed` with the real transaction
+  hash and its explorer link.
+- `scripts/register-reference-customers.ts` registers the two SEP-12 customers against the
+  stack and prints their ids for `$GITHUB_ENV`, so the workflow can supply what the form
+  cannot. Same manifest, wiring and sample PII as `pnpm verify:corridor`.
+- A third job, `send-flow`, in `.github/workflows/reference-corridor.yml` does all of it:
+  guards, stack, distribution account, funding, registration, then the Playwright run. The
+  spec skips with a named reason unless `E2E_REFERENCE_STACK=1`, so `pnpm test:a11y` and a
+  local `pnpm exec playwright test` are unaffected.
+
 ### Added — accessibility checks for every step of the send flow ([#692](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/692))
 
 - `web/e2e/accessibility.spec.ts` stops the send flow at each of its steps — the empty form, the

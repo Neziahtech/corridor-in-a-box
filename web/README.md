@@ -50,6 +50,12 @@ pnpm test:a11y   # axe over every step of the send flow (Playwright)
 it is slow on a cold machine and needs `pnpm exec playwright install --with-deps
 chromium` once. It runs against `e2e/accessibility.spec.ts`.
 
+`test:e2e` (`e2e/send-flow.spec.ts`) drives the same form through a real corridor: the
+Anchor Platform reference stack, the engine served by `pnpm serve`, and this app in proxy
+mode (`CORRIDOR_SERVICE_URL`). It skips with a named reason unless `E2E_REFERENCE_STACK=1`,
+because without the stack there is no corridor to run — the `send-flow` job of
+`.github/workflows/reference-corridor.yml` is what sets it up and runs it.
+
 ## How it talks to the engine
 
 By default the **Run a payment** page calls a local API route

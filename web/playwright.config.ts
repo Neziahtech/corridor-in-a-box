@@ -5,7 +5,13 @@ import { defineConfig, devices } from "@playwright/test";
 // actually applied, and those come from the compiled Tailwind stylesheet — a dev
 // server would leave the contrast half of WCAG unmeasured.
 const PORT = Number(process.env.E2E_PORT ?? 3100);
-const baseURL = `http://127.0.0.1:${PORT}`;
+const baseURL = process.env.E2E_BASE_URL ?? `http://127.0.0.1:${PORT}`;
+
+// E2E_BASE_URL means the app is already running and configured by whoever set
+// it — the live reference-stack job starts it with CORRIDOR_SERVICE_URL, which
+// this config could not supply. Without it, the run below builds and serves its
+// own production app.
+const externalApp = Boolean(process.env.E2E_BASE_URL);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -24,13 +30,15 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium" }],
-  webServer: {
-    command: `pnpm build && pnpm start --port ${PORT}`,
-    url: baseURL,
-    // Reuse a server already on the port: iterating on one spec locally should
-    // not pay for a Next build every time. CI always starts its own.
-    reuseExistingServer: !process.env.CI,
-    // A cold `next build` on a slow laptop is minutes; CI is warm and much faster.
-    timeout: process.env.CI ? 300_000 : 900_000,
-  },
+  webServer: externalApp
+    ? undefined
+    : {
+        command: `pnpm build && pnpm start --port ${PORT}`,
+        url: `http://127.0.0.1:${PORT}`,
+        // Reuse a server already on the port: iterating on one spec locally
+        // should not pay for a Next build every time. CI always starts its own.
+        reuseExistingServer: !process.env.CI,
+        // A cold `next build` on a slow laptop is minutes; CI is warm and much faster.
+        timeout: process.env.CI ? 300_000 : 900_000,
+      },
 });
