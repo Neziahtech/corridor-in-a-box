@@ -7,6 +7,23 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
 
 ## [Unreleased]
 
+### Added — accessibility checks for every step of the send flow ([#692](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/692))
+
+- `web/e2e/accessibility.spec.ts` stops the send flow at each of its steps — the empty form, the
+  submission in flight, a run walking the machine to `completed`, its idempotent replay, and each
+  way a run can end (a refused quote, a refund, a hold, an amount the engine rejects, a settled
+  payment's explorer link, a status endpoint that is not answering) — and runs axe over each with
+  its WCAG A, AA and 2.2 tags plus best-practice. Keyboard behaviour is asserted beside the scan:
+  which control Tab reaches next, by accessible name, and that a refused amount moves focus to the
+  field its error is about.
+- `web/playwright.config.ts` drives `next start` on the production build rather than the dev
+  server, because axe reads colour contrast from the compiled Tailwind stylesheet. `pnpm test:a11y`
+  runs it, and the `web` job of `.github/workflows/ci.yml` installs chromium and runs it after
+  `pnpm build`.
+- The final check breaks the page on purpose — an unlabelled field, text that misses the AA ratio,
+  a control removed from the tab order — and requires the gate to notice each. Without it a green
+  run would only prove axe had nothing to say.
+
 ### Added — conformance test kit for planners ([#616](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/616))
 
 - `@corridor/router/testing` exports `describePlannerContract`, `checkPlannerContract` and

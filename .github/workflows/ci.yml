@@ -212,3 +212,9 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm build
+      # The accessibility checks judge the page as it ships, so they drive the
+      # production build: axe reads colour contrast and focus visibility from the
+      # compiled Tailwind stylesheet, which the dev server does not use. They start
+      # their own server (playwright.config.ts webServer), hence the second build.
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:a11y
