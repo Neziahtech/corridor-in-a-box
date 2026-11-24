@@ -17,6 +17,9 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
   CI's `contracts` job — that measure the lifetime, so the criterion can be re-checked rather
   than re-asserted. It also records the limit: `bump` keeps a live entry alive, it cannot revive
   one already archived.
+### Added — categorize stellar.toml fetch failure reasons ([#662](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/662))
+
+- The probe records a categorized `tomlFailureReason` (`dns`, `timeout`, `http_<status>`, `tls`, or `parse`) when fetching an anchor's `stellar.toml` fails, distinguishing network/DNS unreachable hosts, timeouts, TLS failures, HTTP errors, and malformed responses.
 
 ### Added — conformance test kit for planners ([#616](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/616))
 
@@ -357,6 +360,14 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
   TypeScript source (so nothing is published until #262 gives each library a `dist/`).
   `scripts/changelog-section.ts` extracts the release notes. Both are unit-tested.
 - "Releasing" checklist in `CONTRIBUTING.md`. Cutting the first tag is a maintainer action.
+
+### Added — the wave-11 plan in `ROADMAP.md` ([#708](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/708))
+
+- A new section, "Wave 11 — the smart router and the road to mainnet", in seven workstreams:
+  smart router, rate history, lane checks, onboarding, more anchors and route types, proof on
+  testnet, and mainnet steps. Its 25 items link all 127 open issues of the wave, each one once.
+- Five older open items now name the wave-11 issue that carries them forward. One open item,
+  the SCF grant proposal, has no issue in the tracker and keeps its link to the draft.
 
 ### Added — property tests for the registry contract ([#283](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/283))
 
