@@ -17,6 +17,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
   CI's `contracts` job — that measure the lifetime, so the criterion can be re-checked rather
   than re-asserted. It also records the limit: `bump` keeps a live entry alive, it cannot revive
   one already archived.
+
 ### Added — categorize stellar.toml fetch failure reasons ([#662](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/662))
 
 - The probe records a categorized `tomlFailureReason` (`dns`, `timeout`, `http_<status>`, `tls`, or `parse`) when fetching an anchor's `stellar.toml` fails, distinguishing network/DNS unreachable hosts, timeouts, TLS failures, HTTP errors, and malformed responses.
