@@ -58,6 +58,17 @@ with those three wired to fetches the spec answers with `page.route`. That page 
 a 404 unless the server runs with `SEND_A11Y_FIXTURE=1`, which the Playwright config
 sets; a server you start yourself for the checks needs it too.
 
+`test:e2e` (`e2e/send-flow.spec.ts`) runs the send flow against a real corridor: the
+Anchor Platform reference stack, the engine served by `pnpm serve`, and this app
+already started in proxy mode (`CORRIDOR_SERVICE_URL` for `/payments`,
+`SEND_APP_SERVICE_URL` for `/api/send`), named by `E2E_BASE_URL`. It skips with a
+named reason unless `E2E_REFERENCE_STACK=1`, because without the stack there is no
+corridor to run. The `send-flow` job of `.github/workflows/reference-corridor.yml`
+sets all of that up and runs it nightly. Since `/send` is not wired to the service's
+`POST /routes` yet, the spec asserts that it stops before routes, settles a payment through the send app's own
+server route `/api/send/payments`, and follows that payment on the `/payments`
+runner.
+
 ## How it talks to the engine
 
 By default the **Run a payment** page calls a local API route

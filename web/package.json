@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "oxlint",
     "typecheck": "tsc --noEmit",
-    "test:a11y": "playwright test e2e/accessibility.spec.ts"
+    "test:a11y": "playwright test e2e/accessibility.spec.ts",
+    "test:e2e": "playwright test e2e/send-flow.spec.ts"
   },
   "dependencies": {
     "@stellar/stellar-sdk": "^17.4.0",

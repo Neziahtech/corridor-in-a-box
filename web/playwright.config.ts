@@ -5,7 +5,13 @@ import { defineConfig, devices } from "@playwright/test";
 // actually applied, and those come from the compiled Tailwind stylesheet — a dev
 // server would leave the contrast half of WCAG unmeasured.
 const PORT = Number(process.env.E2E_PORT ?? 3100);
-const baseURL = `http://127.0.0.1:${PORT}`;
+
+// E2E_BASE_URL means the app is already running, started and configured by
+// whoever set it: the send-flow job of .github/workflows/reference-corridor.yml
+// starts it in proxy mode against a live @corridor/service, which this config
+// could not supply. Without it, the run below builds and serves its own app.
+const externalApp = process.env.E2E_BASE_URL || undefined;
+const baseURL = externalApp ?? `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -24,18 +30,20 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium" }],
-  webServer: {
-    command: `pnpm build && pnpm start --port ${PORT}`,
-    // Serves /send/a11y-fixture, the send app with its route planner, field
-    // loader and sender wired to fetches the spec answers. Without this the
-    // page is a 404, as it is on every deployment.
-    env: { SEND_A11Y_FIXTURE: "1" },
-    url: baseURL,
-    // Reuse a server already on the port: iterating on one spec locally should
-    // not pay for a Next build every time. A reused server needs
-    // SEND_A11Y_FIXTURE=1 in its environment too. CI always starts its own.
-    reuseExistingServer: !process.env.CI,
-    // A cold `next build` on a slow laptop is minutes; CI is warm and much faster.
-    timeout: process.env.CI ? 300_000 : 900_000,
-  },
+  webServer: externalApp
+    ? undefined
+    : {
+        command: `pnpm build && pnpm start --port ${PORT}`,
+        // Serves /send/a11y-fixture, the send app with its route planner, field
+        // loader and sender wired to fetches the spec answers. Without this the
+        // page is a 404, as it is on every deployment.
+        env: { SEND_A11Y_FIXTURE: "1" },
+        url: baseURL,
+        // Reuse a server already on the port: iterating on one spec locally should
+        // not pay for a Next build every time. A reused server needs
+        // SEND_A11Y_FIXTURE=1 in its environment too. CI always starts its own.
+        reuseExistingServer: !process.env.CI,
+        // A cold `next build` on a slow laptop is minutes; CI is warm and much faster.
+        timeout: process.env.CI ? 300_000 : 900_000,
+      },
 });

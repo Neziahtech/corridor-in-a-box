@@ -5,16 +5,19 @@
 //   CORRIDOR_SIGNER_SECRET=S... pnpm exec tsx scripts/register-reference-customers.ts
 //
 // A conformant SEP-31 anchor will not open a transaction that names no
-// registered receiver, and the web app's send form has no beneficiary fields
-// yet, so the browser test of #693 cannot produce the ids itself. The workflow
-// registers them once, up front, and pipes this output into $GITHUB_ENV:
+// registered receiver. In the web app, /send cannot reach its recipient details
+// form yet (there is no route planner to pick a route from) and the /payments
+// runner has no beneficiary fields, so the browser test of #693 cannot produce
+// the ids itself. The workflow registers them once, up front, and pipes this
+// output into $GITHUB_ENV:
 //
 //   SENDER_SEP12_ID=<id>
 //   RECIPIENT_SEP12_ID=<id>
 //
 // Same manifest, same wiring and the same sample PII as `pnpm verify:corridor`
 // (examples/verify-corridor.ts), which registers exactly these two on every run.
-// Progress goes to stderr so stdout stays evaluable.
+// Progress, and the preflight doctor's own output, go to stderr so stdout holds
+// only the two assignments.
 //
 //   CORRIDOR_SIGNER_SECRET=S...   required
 //   MANIFEST=...                  default corridors/reference.corridor.yaml
@@ -22,11 +25,11 @@
 //   HORIZON_URL=...               default https://horizon-testnet.stellar.org
 //   SKIP_DOCTOR=1                 skip the preflight (stack managed elsewhere)
 
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadCorridor } from "@corridor/manifest";
 import {
   pinToReferenceAnchor,
-  preflightDoctor,
   registerSep12Customer,
   wireCorridorDeps,
   EXIT_MANIFEST,
@@ -72,10 +75,15 @@ async function main(): Promise<void> {
   const corridor = pinToReferenceAnchor(loaded.value, ANCHOR);
 
   if (!process.env.SKIP_DOCTOR) {
-    const doc = preflightDoctor();
-    if (!doc.ok) {
+    // Not preflightDoctor() from wire.ts: that inherits stdout, and the doctor's
+    // report would land in $GITHUB_ENV beside the ids. Its stdout goes to our
+    // stderr instead (fd 2).
+    const doctor = fileURLToPath(new URL("./reference-anchor.sh", import.meta.url));
+    const doc = spawnSync(doctor, ["doctor"], { stdio: ["ignore", 2, 2] });
+    if (doc.error || doc.status !== 0) {
       console.error(
-        `✗ the reference anchor is not fit to run a corridor (doctor exit ${doc.status}).`,
+        `✗ the reference anchor is not fit to run a corridor ` +
+          `(doctor ${doc.error ? doc.error.message : `exit ${doc.status}`}).`,
       );
       process.exit(EXIT_STACK_UNFIT);
     }

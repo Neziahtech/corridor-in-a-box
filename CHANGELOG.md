@@ -7,6 +7,34 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
 
 ## [Unreleased]
 
+### Added — the send flow driven against the reference anchor in CI ([#693](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/693))
+
+- `web/e2e/send-flow.spec.ts` runs the browser against the live lane: the Anchor Platform
+  reference server, the engine served by `pnpm serve`, and the app in proxy mode. It asserts
+  what each part can do today rather than working around it:
+  - `/send` takes an amount and stops at "Routes can't be listed here yet", with nothing sent to
+    `/api/send`. The service's new `POST /routes` (#617) is not reachable from the page yet: the
+    web app has no route proxying it, `<SendApp>` is rendered without a planner, and `pnpm serve`
+    does not configure `routePlanning`, so the endpoint answers 501 there. With no routes to pick
+    there are no recipient details to fill and no Send to press. That is the step this test will
+    take once `/send` is wired to the planner.
+  - A payment that names its beneficiary (SEP-12 ids and payout fields) goes through the send
+    app's own server route, `/api/send/payments`, settles on testnet, and reads back through
+    `/api/send/payments/:key` as `completed` with its route and transaction hash.
+  - The `/payments` runner's own run gets a real SEP-38 quote and is then refused with
+    `KYC_REQUIRED`, because its form names no registered receiver. Given the settled payment's
+    key, it replays that run and shows `completed` with the stellar.expert link to the real hash.
+- `scripts/register-reference-customers.ts` registers the two SEP-12 customers against the stack
+  and prints their ids for `$GITHUB_ENV`. It uses the same manifest, wiring and sample PII as
+  `pnpm verify:corridor`.
+- A fourth job, `send-flow`, in `.github/workflows/reference-corridor.yml` runs all of it with
+  job-scoped secrets, a read-only token and the testnet-only guard: stack, distribution account,
+  funding, registration, then the Playwright run. The spec skips with a named reason unless
+  `E2E_REFERENCE_STACK=1`, and `web/playwright.config.ts` starts no server of its own when
+  `E2E_BASE_URL` names one already running, so `pnpm test:a11y` and local runs are unaffected.
+  The live run needs the reference stack and the testnet secrets, so the nightly
+  `reference-corridor` run is its real check.
+
 ### Added — `POST /routes`: plan and rank routes before paying ([#617](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/617))
 
 - `@corridor/service` serves `POST /routes`. It takes RFC 0004's `RouteRequest` (`sourceAmount`,

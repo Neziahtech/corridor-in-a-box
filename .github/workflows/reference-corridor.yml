@@ -374,18 +374,27 @@ jobs:
   #
   # It re-proves from outside the app what `verify:corridor` proves from inside:
   # that the lane quoted and settled was the live reference anchor's. What the
-  # form itself can do is asserted as it stands: the form collects no beneficiary
-  # data yet, so its own run reaches the anchor for a quote and is then refused
-  # for want of a registered receiver, and that refusal is the expected outcome
-  # until the recipient fields land.
+  # pages can do is asserted as it stands (web/e2e/send-flow.spec.ts): /send has
+  # no route planner to call yet and stops before routes; a payment that names
+  # its beneficiary settles through the send app's own server route,
+  # /api/send/payments; and the /payments runner, whose form collects no
+  # beneficiary data, is refused for want of a registered receiver and then
+  # shows the settled payment when given its key.
   send-flow:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # Read-only, for the reason given on `corridor`: this job holds the signing
+    # keys and runs `pnpm install`, so it must not also hold a token that can push.
+    permissions:
+      contents: read
     # Job-level, for the reasons documented on `corridor` above.
     env:
       SIGNER_SECRET: ${{ secrets.CORRIDOR_SIGNER_SECRET }}
       DISTRIBUTION_SECRET: ${{ secrets.REFERENCE_DISTRIBUTION_SECRET }}
       MANIFEST: corridors/reference.corridor.yaml
+      # The id inside that manifest: the one corridor the send app's proxy is
+      # allowed to serve, and the one the spec pays on.
+      CORRIDOR_ID: reference-testnet
       # Never set. First line of defence; the runners' mainnet guard is the backstop.
       CORRIDOR_ALLOW_MAINNET: ""
       # The reference anchor is on 8080 and hardwired into the manifest, so the
@@ -454,23 +463,41 @@ jobs:
           FUND_AMOUNT: "30"
           FUND_MIN_BALANCE: "50"
 
-      # The form has no beneficiary fields, so the browser cannot name a
-      # receiver. The workflow registers the two SEP-12 customers once and hands
-      # the ids to the test through $GITHUB_ENV.
+      # No page can name a receiver yet, so the workflow registers the two
+      # SEP-12 customers once and hands the ids (SENDER_SEP12_ID,
+      # RECIPIENT_SEP12_ID) to the test through $GITHUB_ENV.
+      # Only the two assignment lines reach $GITHUB_ENV, so a stray line on
+      # stdout from anything the script loads cannot corrupt that file.
       - name: Register the anchor's SEP-12 customers
-        run: pnpm exec tsx scripts/register-reference-customers.ts >> "$GITHUB_ENV"
+        run: |
+          set -euo pipefail
+          pnpm exec tsx scripts/register-reference-customers.ts > sep12-ids.env
+          grep -E '^(SENDER|RECIPIENT)_SEP12_ID=[A-Za-z0-9._:-]+$' sep12-ids.env > sep12-ids.ok || true
+          if [ "$(wc -l < sep12-ids.ok)" -ne 2 ]; then
+            echo "::error::register-reference-customers.ts did not print both SEP-12 ids"
+            exit 1
+          fi
+          cat sep12-ids.ok >> "$GITHUB_ENV"
         env:
           CORRIDOR_SIGNER_SECRET: ${{ env.SIGNER_SECRET }}
 
       # Two throwaway keys, generated per run: the service's own API key, which
-      # only the app's server-side route ever sees, and the key a caller must
-      # present to get that route to lend it out at all. Neither is a secret —
-      # the money is testnet and the stack is one this job owns and destroys.
+      # only the app's server-side routes ever see (both /api/payments and
+      # /api/send use it, so a run created through one can be read through the
+      # other), and the key a caller must present before /api/payments lends it
+      # out at all. Neither is a secret: the money is testnet and the stack is
+      # one this job owns and destroys.
       - name: Run the send flow in a browser
         env:
           CORRIDOR_SIGNER_SECRET: ${{ env.SIGNER_SECRET }}
         run: |
           set -euo pipefail
+          # The send app's proxy only serves the corridors it is told to, so the
+          # id it is given must be the manifest's own.
+          if ! grep -qx "id: $CORRIDOR_ID" "$MANIFEST"; then
+            echo "::error::$MANIFEST does not declare id: $CORRIDOR_ID"
+            exit 1
+          fi
           mkdir -p web-logs
           SERVICE_KEY=$(openssl rand -hex 16)
           WEB_KEY=$(openssl rand -hex 16)
@@ -488,12 +515,17 @@ jobs:
             CORRIDOR_SERVICE_URL="http://127.0.0.1:$SERVICE_PORT" \
             CORRIDOR_SERVICE_API_KEY="$SERVICE_KEY" \
             CORRIDOR_WEB_API_KEY="$WEB_KEY" \
+            SEND_APP_SERVICE_URL="http://127.0.0.1:$SERVICE_PORT" \
+            SEND_APP_SERVICE_API_KEY="$SERVICE_KEY" \
+            SEND_APP_CORRIDORS="$CORRIDOR_ID" \
               pnpm start --port "$WEB_PORT"
           ) > web-logs/web.log 2>&1 &
           web=$!
           trap 'kill "$watcher" "$service" "$web" 2>/dev/null || true' EXIT
 
-          for url in "http://127.0.0.1:$SERVICE_PORT/healthz" "http://127.0.0.1:$WEB_PORT/payments"; do
+          for url in "http://127.0.0.1:$SERVICE_PORT/healthz" \
+                     "http://127.0.0.1:$WEB_PORT/payments" \
+                     "http://127.0.0.1:$WEB_PORT/send"; do
             for _ in $(seq 1 60); do
               curl -fsS "$url" >/dev/null 2>&1 && break
               sleep 2
@@ -505,19 +537,22 @@ jobs:
             fi
           done
 
-          # E2E_SENDER_SEP12_ID and E2E_RECIPIENT_SEP12_ID arrive from the step
-          # above through GITHUB_ENV. E2E_BASE_URL tells Playwright the app is
-          # already up and configured, so it does not start its own.
+          # SENDER_SEP12_ID and RECIPIENT_SEP12_ID arrive from the step above
+          # through GITHUB_ENV. E2E_BASE_URL tells Playwright the app is already
+          # up and configured, so it does not start its own.
           E2E_REFERENCE_STACK=1 \
           E2E_BASE_URL="http://127.0.0.1:$WEB_PORT" \
           E2E_WEB_API_KEY="$WEB_KEY" \
-            pnpm --dir web exec playwright test e2e/send-flow.spec.ts
+          E2E_CORRIDOR_ID="$CORRIDOR_ID" \
+          E2E_SENDER_SEP12_ID="$SENDER_SEP12_ID" \
+          E2E_RECIPIENT_SEP12_ID="$RECIPIENT_SEP12_ID" \
+            pnpm --dir web test:e2e
 
       - name: Collect logs
         if: ${{ failure() }}
         run: |
           scripts/reference-anchor.sh logs-dump anchor-logs || true
-          tail -n 200 web-logs/*.log
+          tail -n 200 web-logs/*.log || true
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ failure() }}
