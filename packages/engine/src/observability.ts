@@ -92,12 +92,28 @@ export interface AuditEntry extends LogFields {
   /** W3C `traceparent` of the request that started the run, when it had one. */
   readonly traceparent?: string;
   readonly routeTrust?: "attested" | "manifest";
+  /**
+   * Route-fallback link (RFC 0004). Set on the first transition of a run that
+   * was started as a fallback: the idempotency key of the run that failed
+   * before any funds moved and handed off to this one. Lets the audit trail
+   * connect a failed primary to the alternate that succeeded it.
+   */
+  readonly fallbackFrom?: string;
+  /**
+   * Route-fallback link (RFC 0004). Set on the terminal `failed` transition of
+   * a run that fell back: the idempotency key of the linked run started on the
+   * next route option. Only stamped when the failure happened before the run
+   * reached `settling`, so a post-settle failure never points at a successor.
+   */
+  readonly fallbackTo?: string;
   /** The anchor's SEP-38 fee, in the sell asset. Present on the `settled` entry when the quote carried one. */
   readonly quoteFee?: Money;
   /** Stellar network fee charged for the settlement, in stroops (Horizon `fee_charged`). */
   readonly networkFee?: string;
   readonly amountRefunded?: string;
   readonly amountFee?: string;
+  /** Whether the quote was pre-fetched / supplied to execute() rather than fetched. */
+  readonly quoteSupplied?: boolean;
   /**
    * Pre-settle gate results, one per configured check: recorded on the
    * transition into `verifying` and again on the one leaving it (`settling`,

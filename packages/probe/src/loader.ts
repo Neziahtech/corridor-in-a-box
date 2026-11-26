@@ -4,6 +4,7 @@ import {
   type ProbeOutcome,
   type SepNumber,
   type ProbeName,
+  type TomlFailureReason,
   sepBit,
   probeBit,
   SEP_NUMBERS,
@@ -188,6 +189,10 @@ export function parseProbeResults(input: unknown): ProbeResult[] {
       );
     }
     const country = typeof item.country === "string" ? item.country : undefined;
+    const tomlFailureReason =
+      typeof item.tomlFailureReason === "string"
+        ? (item.tomlFailureReason as TomlFailureReason)
+        : undefined;
 
     return {
       domain,
@@ -196,6 +201,7 @@ export function parseProbeResults(input: unknown): ProbeResult[] {
       probesPassed,
       tomlHash,
       outcomes,
+      ...(tomlFailureReason ? { tomlFailureReason } : {}),
       ...(receiveAssets ? { receiveAssets, sep31ReceiveAssets: receiveAssets } : {}),
       ...(receiveLimits ? { receiveLimits } : {}),
       ...(country ? { country } : {}),

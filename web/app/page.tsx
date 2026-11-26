@@ -3,12 +3,15 @@ import { ArrowRight, Boxes, ShieldCheck, Repeat, Activity, Info, Link2 } from "l
 import { Button } from "@/components/ui/Button";
 import { CorridorCard } from "@/components/CorridorCard";
 import { LivenessLegend } from "@/components/LivenessLegend";
-import { AnchorCard } from "@/components/AnchorCard";
+import { AttestedAnchorsSection } from "@/components/AttestedAnchorsSection";
 import { NetworkSwitch } from "@/components/NetworkSwitch";
 import { NoRegistry } from "@/components/NoRegistry";
+import { RateHistoryChart } from "@/components/RateHistoryChart";
 import { RegistryFreshness } from "@/components/RegistryFreshness";
 import { corridors, liveness } from "@/lib/corridors";
 import { NETWORK_LABEL, type NetworkId } from "@/lib/network";
+import { fetchRateSummaries } from "@/lib/rate-summaries";
+import { buildRateHistory } from "@/lib/rates";
 import { fetchAttestations, registryId, REGISTRY_NETWORK } from "@/lib/registry";
 
 // Anchor facts are read from the chain at request time, not baked in at build.
@@ -22,10 +25,12 @@ type Snapshot = Awaited<ReturnType<typeof fetchAttestations>>;
 export default async function Home() {
   // Both networks are read here, so the cached page already holds each of them and the switch
   // only chooses which to show. A network with no registry costs nothing: nothing is called.
-  const [testnet, mainnet] = await Promise.all([
+  const [testnet, mainnet, rateSummaries] = await Promise.all([
     fetchAttestations("testnet"),
     fetchAttestations("public"),
+    fetchRateSummaries(),
   ]);
+  const rateHistory = buildRateHistory(rateSummaries.summaries);
   const verifiedCount = corridors.filter((c) => {
     const state = liveness(c).state;
     return state === "verified" || state === "proven";
@@ -108,6 +113,18 @@ export default async function Home() {
         />
       </section>
 
+      {/* Rate history per currency pair, from the published daily summaries */}
+      <section className="flex flex-col gap-5">
+        <RateHistoryChart
+          histories={rateHistory}
+          status={{
+            ok: rateSummaries.ok,
+            configured: rateSummaries.configured,
+            error: rateSummaries.error,
+          }}
+        />
+      </section>
+
       {/* Corridors */}
       <section className="flex flex-col gap-5">
         <div className="flex items-end justify-between">
@@ -184,11 +201,7 @@ function AnchorPanel({ network, snapshot }: { network: NetworkId; snapshot: Snap
           No anchors have been attested on {label} yet.
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {snapshot.anchors.map((a) => (
-            <AnchorCard key={a.domain} anchor={a} network={network} />
-          ))}
-        </div>
+        <AttestedAnchorsSection anchors={snapshot.anchors} network={network} />
       )}
     </div>
   );

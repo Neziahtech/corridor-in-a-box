@@ -49,6 +49,9 @@ async function main(): Promise<void> {
   if (r.receiveLimits) {
     console.log(`  receive limits ${describeReceiveLimits(r.receiveLimits)}`);
   }
+  if (r.tomlFailureReason) {
+    console.log(`  toml failure   ${r.tomlFailureReason}`);
+  }
   console.log(`  toml_hash      ${r.tomlHash}`);
   console.log(`\n  seps=${r.seps} probes_run=${r.probesRun} probes_passed=${r.probesPassed}`);
   console.log(`\nSubmit with: pnpm attest ${domain}`);
