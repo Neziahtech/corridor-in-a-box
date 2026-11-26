@@ -34,6 +34,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
 - The final check breaks `/send` on purpose — an unlabelled field, text that misses the AA ratio,
   the amount field removed from the tab order — and requires the checks to notice each. Without it
   a green run would only prove axe had nothing to say.
+
 ### Added — rate history retention and daily pruning ([#599](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/599))
 
 - `createPruningCollectorStep()` in `@corridor/engine` is a `RateCollectorLoop` step that, once
