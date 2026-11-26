@@ -26,9 +26,14 @@ export default defineConfig({
   projects: [{ name: "chromium" }],
   webServer: {
     command: `pnpm build && pnpm start --port ${PORT}`,
+    // Serves /send/a11y-fixture, the send app with its route planner, field
+    // loader and sender wired to fetches the spec answers. Without this the
+    // page is a 404, as it is on every deployment.
+    env: { SEND_A11Y_FIXTURE: "1" },
     url: baseURL,
     // Reuse a server already on the port: iterating on one spec locally should
-    // not pay for a Next build every time. CI always starts its own.
+    // not pay for a Next build every time. A reused server needs
+    // SEND_A11Y_FIXTURE=1 in its environment too. CI always starts its own.
     reuseExistingServer: !process.env.CI,
     // A cold `next build` on a slow laptop is minutes; CI is warm and much faster.
     timeout: process.env.CI ? 300_000 : 900_000,

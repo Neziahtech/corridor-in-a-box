@@ -43,13 +43,20 @@ pnpm dev      # http://localhost:3000
 pnpm lint
 pnpm typecheck
 pnpm build
-pnpm test:a11y   # axe over every step of the send flow (Playwright)
+pnpm test:a11y   # axe over every step of the /send flow (Playwright)
 ```
 
 `test:a11y` builds and serves the production app itself (`playwright.config.ts`), so
 it is slow on a cold machine and needs `pnpm exec playwright install --with-deps
 chromium` once. It runs against `e2e/accessibility.spec.ts`. It is a local check and
 does not run in CI.
+
+`/send` renders the send app without a route planner, a field loader or a sender,
+because `@corridor/service` offers none of them yet, so the flow stops after the
+first step there. The later steps are checked on `/send/a11y-fixture`: the same app
+with those three wired to fetches the spec answers with `page.route`. That page is
+a 404 unless the server runs with `SEND_A11Y_FIXTURE=1`, which the Playwright config
+sets; a server you start yourself for the checks needs it too.
 
 ## How it talks to the engine
 
