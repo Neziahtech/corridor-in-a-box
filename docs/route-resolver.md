@@ -7,6 +7,11 @@ business. The repo ships two — `StaticRouteResolver` (trust the manifest) and
 operator can point a deployment at a third, private one without forking
 anything. This page documents that mechanism.
 
+For how a route is chosen before this seam is reached (the planner's steps,
+price labels, ranking and fallback rules, and route types), see the
+[Route planner guide](route-planner.md) and
+[RFC 0004: Smart router](rfcs/0004-smart-router.md).
+
 ## The RouteResolver interface
 
 Whether a resolver is built in or loaded through `loadResolver`, it must satisfy
@@ -400,6 +405,10 @@ naming every clause that failed. `tests/planner-contract.test.ts` uses them to
 assert that the suite really does fail a planner that breaks each clause.
 
 ## Writing your own
+
+To write a planner rather than a resolver, see
+[How to plug in a custom planner](route-planner.md#how-to-plug-in-a-custom-planner)
+in the route planner guide. To implement your own resolver:
 
 1. Create a file (any path or package you control).
 2. Export `apiVersion` (import it from `@corridor/router` so a future contract

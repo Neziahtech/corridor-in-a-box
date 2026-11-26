@@ -34,6 +34,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
   `E2E_BASE_URL` names one already running, so `pnpm test:a11y` and local runs are unaffected.
   The live run needs the reference stack and the testnet secrets, so the nightly
   `reference-corridor` run is its real check.
+### Added — Route planner guide ([#620](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/620))
+
+- `docs/route-planner.md` explains how a route is chosen, following RFC 0004 §1, §2 and
+  §5: the planner's steps, the three price labels (`locked`, `indicative`, `estimated`),
+  ranking by what the recipient gets priced cautiously then reliability then speed,
+  fallback to the next option with `<key>:alt1` before funds move, the route types (SEP-31,
+  SEP-6 with the third-party caveat, wallet), and how to plug in a custom `RoutePlanner`
+  and prove it with `describePlannerContract`. It marks which steps are on main and which
+  are planned (wallet trustline check #648).
+- `docs/README.md` indexes the guides and RFCs. The web docs site has a route planner
+  page, and `docs/route-resolver.md` and `README.md` link to the guide.
 
 ### Added — `POST /routes`: plan and rank routes before paying ([#617](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/617))
 
