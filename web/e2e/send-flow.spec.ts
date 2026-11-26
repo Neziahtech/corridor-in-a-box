@@ -191,9 +191,11 @@ test.describe("the send flow against the reference anchor", () => {
     // would have produced a connection error instead, and the in-process demo
     // engine has no SEP-12 step at all. The page prints REQUEST_FAILED because
     // the run came back as an error response; the engine's verdict is on the run.
-    await expect(page.getByText(/recipient has no SEP-12 customer id/)).toBeVisible({
-      timeout: 90_000,
-    });
+    // Matched on the visible error box: the screen-reader announcement carries
+    // the same text as "REQUEST_FAILED: …", without the dash.
+    await expect(
+      page.getByText(/REQUEST_FAILED — .*recipient has no SEP-12 customer id/),
+    ).toBeVisible({ timeout: 90_000 });
     await expect(runner.progress(page).locator("span").first()).toHaveText("failed");
 
     const res = await request.get(`/api/payments/${key}`);
