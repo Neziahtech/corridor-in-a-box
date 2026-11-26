@@ -34,6 +34,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
   `E2E_BASE_URL` names one already running, so `pnpm test:a11y` and local runs are unaffected.
   The live run needs the reference stack and the testnet secrets, so the nightly
   `reference-corridor` run is its real check.
+
 ### Added — Route planner guide ([#620](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/620))
 
 - `docs/route-planner.md` explains how a route is chosen, following RFC 0004 §1, §2 and
