@@ -34,6 +34,167 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
 - The final check breaks `/send` on purpose — an unlabelled field, text that misses the AA ratio,
   the amount field removed from the tab order — and requires the checks to notice each. Without it
   a green run would only prove axe had nothing to say.
+### Added — rate history retention and daily pruning ([#599](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/599))
+
+- `createPruningCollectorStep()` in `@corridor/engine` is a `RateCollectorLoop` step that, once
+  per UTC day, deletes raw `rate_samples` older than the retention period, oldest first, in
+  batches (1,000 rows, at most 100 batches a run; a larger backlog continues on the next tick).
+  `pruneRateSamples()` runs one pass directly.
+- Retention is `RATE_RETENTION_DAYS` whole UTC days (default 90). Values below 7 are refused,
+  because the minimum-data rule and the 7-day estimate window read raw samples.
+- The guard is part of the `DELETE`: a sample goes only when its series has a
+  `rate_daily_summaries` row for its UTC day, computed after the sample was recorded. Days
+  without one are kept and logged (`corridor.rate_pruning.unsummarized_days_skipped`). Daily
+  summaries are never deleted.
+- `pnpm rate:collector` (`examples/run-rate-collector.ts`) registers the step. Pruning adds no
+  table; the collector's database role needs `delete` on `rate_samples` (`docs/operations.md`).
+  `docs/rate-history.md` now states the retention.
+
+### Added — SEP-6 corridors are candidates only with `third_party_payout` ([#645](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/645))
+
+- The router's planner step 1, `candidates(request, corridors)` in `@corridor/router`, keeps a
+  `protocol: sep6` corridor only when its manifest sets `third_party_payout: true` (#644), read
+  through `allowsThirdPartyPayout` from `@corridor/manifest`. Without the flag, or with it set to
+  `false`, the corridor goes to `nonMatching` with the reason
+  `SEP6_THIRD_PARTY_PAYOUT_REASON` (also exported), alongside any asset or country mismatch.
+  SEP-31, wallet and custom corridors are unchanged.
+- `corridors/testanchor-sep6.corridor.yaml` records no third-party payout confirmation, so it is
+  no longer a candidate for USD to the US.
+
+### Added — Rate history chart per currency pair ([#600](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/600))
+
+- The home page charts every pair, and each corridor page charts its own pair, from the daily
+  summaries that `fetchRateSummaries()` reads (`RATE_SUMMARIES_URL`). One line per source shows
+  the daily median, with a shaded band down to the daily P25 that estimated prices start from.
+  A `reference_fx` source, when published, is drawn as the reference line.
+- A day with no summary or no samples is a gap: the line and band stop there and the day is
+  marked, never interpolated.
+- Each anchor source shows whether its published summaries meet the RFC 0004 minimum-data rule
+  (at least 7 days of data and 100 samples in the last 7 days), with the counts behind it.
+- With no source configured, an unreadable source, or no data for a pair, the chart shows an
+  empty state and no numbers.
+
+### Added — rate history minimum-data rule for estimated prices ([#598](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/598))
+
+- `@corridor/router` exports `assessRateHistory` (`packages/router/src/rate-history.ts`): given the
+  rate history held for a pair at an anchor, it answers whether an `estimated` price may be shown
+  at all, per RFC 0004 §3: at least 100 samples in the 7-day window, and a history reaching back
+  at least 7 days (`now` minus the oldest usable sample, measured over all the history passed in).
+  It returns `{ ok: true, p25, samples }` or `{ ok: false, reason }`.
+- It asks `buildEstimatedOption` rather than re-implementing the rule, so both use the same
+  defaults (`DEFAULT_MIN_ESTIMATE_SAMPLES`, `DEFAULT_MIN_ESTIMATE_SPAN_DAYS`,
+  `DEFAULT_ESTIMATE_WINDOW_DAYS`), the same sample filtering (malformed, non-positive, future and
+  outlier-flagged samples are left out) and the same P25. Window and both thresholds are
+  configurable.
+
+### Added — lane check v1: authorised GET /sep31/info probe ([#632](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/632))
+
+- `checkLane` in `@corridor/router` now runs two steps: the SEP-10 login through
+  adapter-kit's `Sep10Client` (`sep10_auth`), then `GET <transfer_server_sep31>/info`
+  with the JWT as bearer (`sep31_info`). The lane is `open` only when both pass and the
+  `/info` receive list includes the corridor's on-chain asset (`settlement.receive_asset`,
+  else `settlement.bridge_asset`), matched by asset code and not `enabled: false`.
+- A result that is not open names the step that stopped it in a new `failedStep` field
+  (`LaneCheckStep` is exported). `/info` answering 401 or 403, or not receiving the asset,
+  is `closed`; a 5xx, timeout, malformed body or a corridor with no SEP-31 endpoint is
+  `unknown`. The JWT is sent only to the manifest's SEP-31 server and is never returned.
+- `tests/lane-check.test.ts` covers the bearer header, each refusal and unknown case at
+  `sep31_info`, and asserts `failedStep` on the existing SEP-10 cases.
+
+### Added — Published history of nightly reference runs ([#680](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/680))
+
+- Each nightly `reference-corridor` run is recorded in `web/lib/generated/reference-runs.json`:
+  run id, date, outcome (`success`, `failure` or `cancelled`), duration, the state trail, the
+  settle tx hashes and the run's URL. Newest first, capped at 180 runs. Failed and cancelled
+  runs are recorded too, a re-run replaces its own record, and a corrupt history stops the
+  writer instead of being overwritten.
+- `pnpm record:reference-run` (`scripts/record-reference-run.ts`, `scripts/reference-runs.ts`)
+  writes it. `web/lib/reference-runs.ts` reads it: the list, the latest run (the same source as
+  the #586 dashboard panel) and a success-rate and duration summary.
+- The workflow commits it from a separate `publish-history` job (`needs: corridor`,
+  `if: always()`, `permissions: contents: write`) that reads no secrets and runs no
+  `pnpm install`. The `corridor` job keeps `CORRIDOR_SIGNER_SECRET` on its verify step, is
+  read-only, keeps the runner's real exit status through `tee`, and hands the run's facts over
+  as an artifact. Documented in `docs/operations.md`.
+
+### Added — Fall back to the next route before funds move ([#626](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/626))
+
+- When the primary route fails before any funds move (a refused quote, a KYC rejection, or a
+  transaction that cannot be opened), the engine tries the resolver's alternates as linked runs
+  under `<key>:alt1`, `<key>:alt2`, up to `maxAlternates` (default 2; `0` turns fallback off).
+  Once a run reaches `settling`, no other route is tried.
+- A resumed run whose route now resolves to a different receiving domain than the one stored on
+  the run (#734) is refused with `ROUTE_PINNED`.
+- The router's resolver option type is `RouteCandidate`, so it does not clash with the planner's
+  RFC 0004 `RouteOption`.
+
+### Added — router ranking function ([#611](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/611))
+
+- `rank(options, { estimateMarginBps })` in `@corridor/router` orders route options per RFC 0004
+  §1 "Ranking": by the cautious recipient amount, then reliability, then delivery time, then
+  receiving domain, with no hidden weights. It is pure: it returns a new array and never
+  changes its input, and options equal on every key keep their input order.
+- The cautious amount comes from the price label: a `locked` amount as quoted, an `indicative`
+  or `estimated` (P25) amount minus the estimate margin (default 50 bps, RFC 0004 D3).
+  `cautiousRecipientAmount` exposes that step. Amounts stay decimal strings on scaled BigInts.
+- Domains compare by code unit, so the order is the same under every locale. A malformed or
+  negative amount, an unknown label, a reliability outside 0..1 or options in different assets
+  throw a `RangeError` instead of ranking silently wrong.
+- A full `RouteOption` can be ranked directly. Property tests use the repo's seeded generator:
+  the result is a permutation of the input and stable for equal inputs.
+
+### Added — estimate gap when a business guarantees estimated prices ([#627](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/627))
+
+- With `guaranteeEstimates` on (`EngineDeps` or `ExecuteOptions`, RFC 0004 D4), the engine
+  records `estimateGap` on the run: the anchor's actual payout minus the guaranteed amount,
+  computed with decimal-safe money arithmetic. Positive is a gain, negative a loss the business
+  absorbed, zero an exact match. Nothing is recorded when the option is off.
+- The guaranteed amount defaults to the quote's `destAmount` and can be set with
+  `ExecuteOptions.guaranteedAmount`. The actual amount comes from the anchor's reported
+  `amountOut` (or `ExecuteOptions.actualAmount`).
+- `TransactionStatus` and `OpenTransaction` gain an optional `amountOut`. The SEP-31 and SEP-6
+  adapters read `amount_out` in `amount_out_asset`, falling back to the corridor's dest asset.
+- `estimateGap` is stored in a new nullable `estimate_gap` column on `corridor_runs` (added by
+  `migrate()` on existing tables), read back by `get()` and `listByState()`, and returned on
+  `RunResult` and `GET /payments/:key` (`RunStatus` in `openapi.yaml`).
+
+### Added — `reliability()` score for receiving anchors ([#612](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/612))
+
+- `reliability(anchor, deps)` in `@corridor/router` scores a receiving anchor from 0 to 1 (RFC
+  0004): the business's own success rate on it over 30 days, shrunk toward 0.5 below 20 runs,
+  and multiplied by an attestation-age factor that reaches 0 at the one-week freshness bound. No
+  attestation scores 0. The rules are documented in `docs/route-resolver.md` ("Reliability").
+
+### Added — rate collector loop with 15-minute schedule, jitter, and overlap guard ([#593](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/593))
+
+- `RateCollectorLoop` in `@corridor/engine` runs a list of collector steps (`{ name, run }`) on a
+  15-minute schedule by default (RFC 0004 §3). Each run starts after a random jitter (default up
+  to 5 s), a tick is skipped while the previous run is still going (`skipCount`,
+  `corridor.rate_collector.skipped_overlap`), one step failing does not stop the others, and
+  `stop()` cancels a pending jitter and waits for the run in flight.
+- `pnpm rate:collector` (`examples/run-rate-collector.ts`) is the always-on process. Its steps
+  are the real collectors: `sep38_prices` calls `pollSep38Prices` (#590) for the registry's
+  attested anchors on `STELLAR_NETWORK` plus `RATE_COLLECTOR_SEP38_ANCHORS`, and `dex_trades`
+  calls `collectDexTrades` (#591) for the pairs in `config/dex-pairs.json` over the last 24 hours
+  of complete 15-minute buckets. Every sample is written to Postgres (`DATABASE_URL`, required)
+  through `PostgresRateHistoryStore.recordFlaggingOutliers`. A step with nothing configured is
+  left out. It stops cleanly on `SIGTERM` / `SIGINT`.
+- `.env.example` documents `RATE_COLLECTOR_INTERVAL_MS`, `RATE_COLLECTOR_INTERVAL_SECONDS`,
+  `RATE_COLLECTOR_JITTER_MS`, `RATE_COLLECTOR_RUN_ON_START`, `RATE_COLLECTOR_SEP38_ANCHORS` and
+  `RATE_COLLECTOR_DEX_PAIRS`.
+
+### Added — `third_party_payout` flag for SEP-6 corridors ([#644](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/644))
+
+- A `protocol: sep6` dest can declare `third_party_payout: true` when the anchor has
+  confirmed it lets a business withdraw to a third party, which cannot be probed (RFC 0004 §5).
+  `third_party_payout_note`, recording who confirmed it and when, is required when the flag
+  is `true`.
+- `@corridor/manifest` refuses the flag and its note on every non-SEP-6 dest (`sep31`,
+  `wallet`, `custom:<id>`, legacy dests with no `protocol`), refuses any non-boolean form
+  (object, string, `null`), and refuses an empty note. All three rules live in one check that
+  reads the raw dest, so a protocol schema can no longer drop the field silently.
+- `allowsThirdPartyPayout(corridor)` is exported for the router: `true` only for a SEP-6 dest
+  with `third_party_payout: true`. Documented in `docs/sep-coverage.md`.
 
 ### Added — wallet route: settlement to a recipient account ([#647](https://github.com/corridor-in-a-box/corridor-in-a-box/issues/647))
 

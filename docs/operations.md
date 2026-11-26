@@ -270,6 +270,55 @@ moving twice, and also exits `5`. The verdict, the trail, the settlement and
 that count are appended to `$GITHUB_STEP_SUMMARY` (`SUMMARY_FILE` outside
 Actions) under the title in `SCENARIO`.
 
+#### The published run history
+
+The nightly `reference-corridor` workflow appends one machine-readable record
+per run to `web/lib/generated/reference-runs.json` and commits it:
+
+```json
+{
+  "runs": [
+    {
+      "runId": 43969161708,
+      "date": "2026-11-17T05:43:00.000Z",
+      "outcome": "success",
+      "durationSeconds": 631,
+      "trail": ["created", "quoted", "completed"],
+      "txHashes": ["81c46422…"],
+      "runUrl": "https://github.com/corridor-in-a-box/corridor-in-a-box/actions/runs/43969161708"
+    }
+  ]
+}
+```
+
+Newest first, capped at 180 runs. Failed and cancelled runs are recorded too — a
+success rate needs denominators — and a re-run of the same workflow run id
+replaces its record. `pnpm record:reference-run` writes it (`GITHUB_RUN_ID`,
+`RUN_STARTED_AT`, `RUN_FINISHED_AT`, `CORRIDOR_EXIT`, `RUN_CANCELLED` and
+`RUN_LOG` are its inputs), and `web/lib/reference-runs.ts` reads it, including
+the latest entry the dashboard's `#586` panel shows, so both views come from one
+source.
+
+The write happens in two jobs, so the token that can push never sits next to the
+signing keys:
+
+- `corridor` (`permissions: contents: read`) runs the corridor with the signer,
+  keeps the runner's own exit status through the `tee` into `corridor-run.log`,
+  and always uploads a `reference-run-<run id>` artifact: the run's start and
+  finish times, exit status and whether it was cancelled, plus only the `trail:`
+  and transaction lines of the log (GitHub masks secrets in step logs, not in
+  artifacts).
+- `publish-history` (`needs: corridor`, `if: always()`,
+  `permissions: contents: write`) reads no secrets and installs nothing. It runs
+  the recorder with Node's built-in TypeScript type stripping, commits the file
+  and pushes. If the push is rejected because something landed meanwhile, it
+  starts again from the new tip, up to three times. A missing artifact (the
+  corridor job died before saving it) is still recorded, as a failure.
+
+The push needs the workflow token to be allowed to write to the branch it runs
+on. If branch protection on `main` blocks that, allow `github-actions[bot]` or
+move the record to an unprotected data branch and read it from there.
+
 ### `pnpm verify:crash-resume` — kill the service after settle
 
 ```bash
@@ -899,6 +948,32 @@ later: the unique keys use `nulls not distinct`.
 ```sql
 grant select, insert, update on rate_samples, rate_daily_summaries to corridor_service;
 grant usage on sequence rate_samples_id_seq to corridor_service;
+```
+
+**Retention and pruning (#599).** The collector (`pnpm rate:collector`) runs a
+`rate_pruning` step (`createPruningCollectorStep`,
+`packages/engine/src/rate-pruning.ts`) on its first tick of each UTC day. It
+deletes `rate_samples` taken before midnight UTC `RATE_RETENTION_DAYS` days
+before today (default 90, at least 7), oldest first, in batches of 1,000 rows,
+at most 100 batches a run; a larger backlog carries on at the next tick.
+
+- **The guard.** A sample is deleted only when its series has a
+  `rate_daily_summaries` row for the sample's UTC day, computed after the
+  sample was recorded. The check is part of the `DELETE`. A day with no
+  summary, or a sample that arrived after its day was summarised, is kept and
+  logged as `corridor.rate_pruning.unsummarized_days_skipped`. Nothing writes
+  `rate_daily_summaries` on a schedule yet, so until a summary job runs, the
+  step deletes nothing.
+- **Never deleted:** `rate_daily_summaries` rows, and samples from the last
+  `RATE_RETENTION_DAYS` whole days and today.
+- **No extra table.** Pruning keeps no state: `migrate()` creates only
+  `rate_samples` and `rate_daily_summaries`, and their indexes, for rate
+  history. After a restart the step prunes again on its first tick, which
+  deletes only what is still eligible.
+- The role the collector connects as also needs `delete` on `rate_samples`:
+
+```sql
+grant delete on rate_samples to corridor_service;
 ```
 
 To read a payment's trail, use `PostgresAuditSink.listAudit(idempotencyKey)`.

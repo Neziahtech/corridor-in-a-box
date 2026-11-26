@@ -50,6 +50,12 @@ samples into Postgres (`rate_samples`, created by
 running it keeps the project non-custodial. It does not run on GitHub
 Actions, whose schedules are too unreliable for a 15-minute cadence.
 
+Run it with `DATABASE_URL=postgres://... pnpm rate:collector`
+(`examples/run-rate-collector.ts`, a `RateCollectorLoop` from
+`packages/engine/src/rate-collector-loop.ts`). Each run polls SEP-38 prices
+and then reads the DEX pairs; a run that is still going when the next one is
+due makes that next one skip. The settings are in `.env.example`.
+
 ## Daily summary
 
 Per RFC 0004 §3, a daily summary per pair is the **min, P25, median, P75,
@@ -63,7 +69,17 @@ data and at least 100 samples in the window. Below that it is unpriceable.
 
 ## Retention
 
-To confirm — how long raw samples are kept is not decided yet.
+Raw samples are kept for **90 whole UTC days** by default, set with
+`RATE_RETENTION_DAYS` (#599). It can never be set below 7 days: the
+minimum-data rule above and the default 7-day estimate window (RFC 0004 D3)
+read raw samples. Daily summaries are kept forever.
+
+Once a day the collector deletes older samples in batches
+(`packages/engine/src/rate-pruning.ts`), and only for a series and UTC day
+whose daily summary has been written after the samples were recorded. A day
+with no summary keeps all its raw samples. Until a job writes daily summaries,
+nothing is pruned. The details are in
+[operations.md](operations.md#rate-history).
 
 ## Links
 

@@ -394,6 +394,9 @@ components:
         trail:
           type: array
           items: { $ref: "#/components/schemas/CorridorState" }
+        estimateGap:
+          type: string
+          description: Difference between guaranteed amount and actual anchor payout (RFC 0004 D4).
     RunStatus:
       type: object
       required: [idempotencyKey, corridorId, state]
@@ -420,6 +423,9 @@ components:
         error:
           type: string
           description: The error code only, never its message.
+        estimateGap:
+          type: string
+          description: Difference between guaranteed amount and actual anchor payout (RFC 0004 D4).
     ErrorCode:
       type: string
       enum:
@@ -451,6 +457,7 @@ components:
         - DRY_RUN_COMPLETE
         - ROUTE_REFUSED
         - ROUTE_OPTION_INVALID
+        - ROUTE_PINNED
     EngineError:
       type: object
       required: [error, message]
