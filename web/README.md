@@ -25,7 +25,7 @@ are out of date.
 Since [#80](https://github.com/corridor-in-a-box/corridor-in-a-box/pull/80) `web/` is
 its own pnpm workspace root (`web/pnpm-workspace.yaml`, with its own lockfile), so
 it builds and runs on its own — gated by its own CI job (`pnpm lint` +
-`pnpm typecheck` + `pnpm build` + `pnpm test:a11y`, see `.github/workflows/ci.yml`)
+`pnpm typecheck` + `pnpm build`, see `.github/workflows/ci.yml`)
 rather than by the monorepo's test/lint gate. Lint is
 [oxlint](https://oxc.rs/docs/guide/usage/linter.html)
 (`.oxlintrc.json`), not ESLint: ESLint's TypeScript parser refuses TS 7, while
@@ -48,7 +48,8 @@ pnpm test:a11y   # axe over every step of the send flow (Playwright)
 
 `test:a11y` builds and serves the production app itself (`playwright.config.ts`), so
 it is slow on a cold machine and needs `pnpm exec playwright install --with-deps
-chromium` once. It runs against `e2e/accessibility.spec.ts`.
+chromium` once. It runs against `e2e/accessibility.spec.ts`. It is a local check and
+does not run in CI.
 
 ## How it talks to the engine
 

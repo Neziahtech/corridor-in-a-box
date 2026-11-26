@@ -17,9 +17,8 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once it reache
   which control Tab reaches next, by accessible name, and that a refused amount moves focus to the
   field its error is about.
 - `web/playwright.config.ts` drives `next start` on the production build rather than the dev
-  server, because axe reads colour contrast from the compiled Tailwind stylesheet. `pnpm test:a11y`
-  runs it, and the `web` job of `.github/workflows/ci.yml` installs chromium and runs it after
-  `pnpm build`.
+  server, because axe reads colour contrast from the compiled Tailwind stylesheet. Run it locally
+  with `pnpm test:a11y` in `web/`; it is not part of CI yet.
 - The final check breaks the page on purpose — an unlabelled field, text that misses the AA ratio,
   a control removed from the tab order — and requires the gate to notice each. Without it a green
   run would only prove axe had nothing to say.
